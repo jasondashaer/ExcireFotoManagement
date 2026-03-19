@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jackson.osxphotos.sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jacksonharris/repos/ExcireFotoManagement/osxphotos_sync.sh</string>
+    </array>
+
+    <!-- Run daily at 3:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Log stdout/stderr -->
+    <key>StandardOutPath</key>
+    <string>/Users/jacksonharris/repos/ExcireFotoManagement/logs/launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jacksonharris/repos/ExcireFotoManagement/logs/launchd_stderr.log</string>
+
+    <!-- Don't restart on failure -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Set PATH so osxphotos and exiftool are found -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

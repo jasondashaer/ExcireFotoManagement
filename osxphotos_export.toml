@@ -1,0 +1,21 @@
+# osxphotos export configuration
+# Docs: https://rhettbull.github.io/osxphotos/cli.html
+#
+# Usage:
+#   osxphotos export /path/to/destination --load-config osxphotos_export.toml
+#
+# The destination path is NOT stored here — it's passed as the first argument
+# by the wrapper script (osxphotos_sync.sh). This keeps the config portable.
+
+[export]
+update = true
+ramdb = true
+export_by_date = true
+touch_file = true
+exiftool = true
+sidecar = ["xmp"]
+person_keyword = true
+album_keyword = true
+not_missing = true
+only_photos = true
+verbose = true

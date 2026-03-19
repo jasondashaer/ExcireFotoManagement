@@ -1,0 +1,51 @@
+# ─── Media files (NEVER commit personal photos/videos) ───────────────────────
+*.jpg
+*.jpeg
+*.heic
+*.heif
+*.png
+*.tiff
+*.tif
+*.gif
+*.bmp
+*.webp
+*.raw
+*.cr2
+*.cr3
+*.nef
+*.arw
+*.dng
+*.orf
+*.rw2
+*.raf
+*.mov
+*.mp4
+*.m4v
+*.avi
+*.mkv
+*.wmv
+*.3gp
+
+# XMP sidecars (contain personal metadata)
+*.xmp
+
+# osxphotos export database
+.osxphotos_export.db
+
+# Export reports
+export_report.csv
+
+# macOS
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Lock files
+*.lock
+
+# Editor
+.vscode/
+*.swp
+*.swo
