@@ -16,10 +16,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/osxphotos_export.toml"
 
 # Destination — change this when migrating to a new drive
-EXPORT_DEST="/Volumes/T9 Japan/Photos/Database/Backups/iCloud"
+EXPORT_DEST="/Volumes/PhotosX9/Photos/Export/iCloud"
 
 # Volume name to check (extracted from EXPORT_DEST)
-VOLUME_NAME="T9 Japan"
+VOLUME_NAME="PhotosX9"
 
 # Timeout in seconds (4 hours)
 TIMEOUT=14400

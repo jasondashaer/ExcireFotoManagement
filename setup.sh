@@ -51,16 +51,14 @@ fi
 cp "$PLIST_SRC" "$PLIST_DEST"
 echo "Installed plist to ${PLIST_DEST}"
 
-# Load the launchd job
-launchctl load "$PLIST_DEST"
-echo "Loaded launchd job — will run daily at 3:00 AM"
-
+# Install plist but do NOT load it yet
+echo "Plist installed but NOT loaded (paused)"
 echo ""
 echo "=== Setup Complete ==="
 echo ""
 echo "To test manually:  bash ${SCRIPT_DIR}/osxphotos_sync.sh"
-echo "To check status:   launchctl list | grep osxphotos"
-echo "To disable:        launchctl unload ${PLIST_DEST}"
+echo "To enable nightly:  launchctl load ${PLIST_DEST}"
+echo "To check status:    launchctl list | grep osxphotos"
+echo "To disable:         launchctl unload ${PLIST_DEST}"
 echo ""
-echo "IMPORTANT: When your new drive arrives, update EXPORT_DEST"
-echo "and VOLUME_NAME in osxphotos_sync.sh"
+echo "Export destination: /Volumes/PhotosX9/Photos/Export/iCloud"

@@ -17,5 +17,4 @@ sidecar = ["xmp"]
 person_keyword = true
 album_keyword = true
 not_missing = true
-only_photos = true
 verbose = true
