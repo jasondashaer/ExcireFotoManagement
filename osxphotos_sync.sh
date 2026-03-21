@@ -15,10 +15,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/osxphotos_export.toml"
 
-# Destination — change this when migrating to a new drive
+# Destination and library paths
 EXPORT_DEST="/Volumes/PhotosX9/Photos/Export/iCloud"
+PHOTOS_LIBRARY="/Volumes/PhotosX9/Photos Library.photoslibrary"
 
-# Volume name to check (extracted from EXPORT_DEST)
+# Volume name to check
 VOLUME_NAME="PhotosX9"
 
 # Timeout in seconds (4 hours)
@@ -112,6 +113,7 @@ CAFFEINATE_PID=$!
 # Run osxphotos in background so we can monitor with timeout
 osxphotos export "$EXPORT_DEST" \
     --load-config "$CONFIG_FILE" \
+    --library "$PHOTOS_LIBRARY" \
     --report "${EXPORT_DEST}/export_report.csv" \
     >> "$LOG_FILE" 2>&1 &
 EXPORT_PID=$!
