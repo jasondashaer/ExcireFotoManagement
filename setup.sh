@@ -2,10 +2,10 @@
 # setup.sh — One-time installer for osxphotos automation
 #
 # What it does:
-#   1. Verifies dependencies (osxphotos, exiftool)
+#   1. Verifies dependencies (osxphotos, exiftool, curl)
 #   2. Creates log directory
-#   3. Makes the sync script executable
-#   4. Installs the launchd plist for daily 3 AM runs
+#   3. Makes scripts executable
+#   4. Installs launchd plists (nightly sync + hourly progress)
 #
 # Usage:
 #   bash setup.sh
@@ -13,16 +13,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLIST_NAME="com.jackson.osxphotos.sync.plist"
-PLIST_SRC="${SCRIPT_DIR}/${PLIST_NAME}"
-PLIST_DEST="${HOME}/Library/LaunchAgents/${PLIST_NAME}"
+LAUNCH_AGENTS="${HOME}/Library/LaunchAgents"
+
+SYNC_PLIST="com.jackson.osxphotos.sync.plist"
+PROGRESS_PLIST="com.jackson.osxphotos.progress.plist"
 
 echo "=== osxphotos Automation Setup ==="
 echo ""
 
 # Check dependencies
 echo "Checking dependencies..."
-for cmd in osxphotos exiftool; do
+for cmd in osxphotos exiftool curl; do
     if command -v "$cmd" &>/dev/null; then
         echo "  ✓ $cmd found: $(command -v "$cmd")"
     else
@@ -37,28 +38,49 @@ echo ""
 mkdir -p "${SCRIPT_DIR}/logs"
 echo "Created logs directory"
 
-# Make sync script executable
+# Make scripts executable
 chmod +x "${SCRIPT_DIR}/osxphotos_sync.sh"
-echo "Made osxphotos_sync.sh executable"
+chmod +x "${SCRIPT_DIR}/osxphotos_progress.sh"
+echo "Made scripts executable"
+echo ""
 
-# Unload existing plist if present
-if launchctl list | grep -q "$PLIST_NAME" 2>/dev/null; then
-    echo "Unloading existing launchd job..."
-    launchctl unload "$PLIST_DEST" 2>/dev/null || true
-fi
+install_plist() {
+    local name="$1"
+    local load="$2"   # "load" or "pause"
+    local src="${SCRIPT_DIR}/${name}"
+    local dest="${LAUNCH_AGENTS}/${name}"
 
-# Install plist
-cp "$PLIST_SRC" "$PLIST_DEST"
-echo "Installed plist to ${PLIST_DEST}"
+    # Unload if already running
+    if launchctl list | grep -q "${name%.plist}" 2>/dev/null; then
+        echo "Unloading existing: ${name}"
+        launchctl unload "$dest" 2>/dev/null || true
+    fi
 
-# Install plist but do NOT load it yet
-echo "Plist installed but NOT loaded (paused)"
+    cp "$src" "$dest"
+
+    if [[ "$load" == "load" ]]; then
+        launchctl load "$dest"
+        echo "  ✓ Installed and ENABLED: ${name}"
+    else
+        echo "  ✓ Installed (paused): ${name}"
+    fi
+}
+
+echo "Installing launchd plists..."
+install_plist "$SYNC_PLIST" "pause"       # enable manually when ready
+install_plist "$PROGRESS_PLIST" "load"    # start hourly progress checks now
+
 echo ""
 echo "=== Setup Complete ==="
 echo ""
-echo "To test manually:  bash ${SCRIPT_DIR}/osxphotos_sync.sh"
-echo "To enable nightly:  launchctl load ${PLIST_DEST}"
-echo "To check status:    launchctl list | grep osxphotos"
-echo "To disable:         launchctl unload ${PLIST_DEST}"
+echo "Nightly sync (3 AM):   PAUSED — enable when ready:"
+echo "  launchctl load ${LAUNCH_AGENTS}/${SYNC_PLIST}"
+echo ""
+echo "Hourly progress:       ACTIVE — disable when iCloud downloads finish:"
+echo "  launchctl unload ${LAUNCH_AGENTS}/${PROGRESS_PLIST}"
+echo ""
+echo "To run sync manually:  bash ${SCRIPT_DIR}/osxphotos_sync.sh"
+echo "To check jobs:         launchctl list | grep osxphotos"
 echo ""
 echo "Export destination: /Volumes/PhotosX9/Photos/Export/iCloud"
+echo "ntfy topic:         jackson-photosx9-4829"

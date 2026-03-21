@@ -22,6 +22,9 @@ PHOTOS_LIBRARY="/Volumes/PhotosX9/Photos Library.photoslibrary"
 # Volume name to check
 VOLUME_NAME="PhotosX9"
 
+# ntfy topic for push notifications
+NTFY_TOPIC="jackson-photosx9-4829"
+
 # Timeout in seconds (4 hours)
 TIMEOUT=14400
 
@@ -41,7 +44,15 @@ log() {
 notify() {
     local title="$1"
     local message="$2"
+    local priority="${3:-default}"
+    # macOS notification
     osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
+    # ntfy push notification to phone
+    curl -s \
+        -H "Title: $title" \
+        -H "Priority: $priority" \
+        -d "$message" \
+        "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true
 }
 
 cleanup() {
@@ -127,7 +138,7 @@ while kill -0 "$EXPORT_PID" 2>/dev/null; do
         log "ERROR: Export timed out after ${TIMEOUT}s. Killing PID $EXPORT_PID."
         kill "$EXPORT_PID" 2>/dev/null || true
         wait "$EXPORT_PID" 2>/dev/null || true
-        notify "osxphotos Sync Failed" "Export timed out after $(( TIMEOUT / 3600 )) hours"
+        notify "📷 Sync Timed Out" "Export timed out after $(( TIMEOUT / 3600 )) hours" "urgent"
         exit 1
     fi
     sleep 30
@@ -140,10 +151,19 @@ unset EXPORT_PID
 
 if [[ $EXIT_CODE -eq 0 ]]; then
     log "Export completed successfully in ${SECONDS}s"
-    notify "osxphotos Sync Complete" "Export finished in $(( SECONDS / 60 )) minutes"
+
+    # Parse summary from last line of log
+    SUMMARY=$(grep "^Processed:" "$LOG_FILE" | tail -1 || echo "")
+    NEW=$(echo "$SUMMARY" | grep -oE 'exported: [0-9]+' | grep -oE '[0-9]+' || echo "?")
+    SKIPPED=$(echo "$SUMMARY" | grep -oE 'skipped: [0-9]+' | grep -oE '[0-9]+' || echo "?")
+    MISSING=$(echo "$SUMMARY" | grep -oE 'missing: [0-9]+' | grep -oE '[0-9]+' || echo "?")
+    ELAPSED=$(( SECONDS / 60 ))
+
+    MSG="✅ New: ${NEW} | Skipped: ${SKIPPED} | Missing: ${MISSING} | Time: ${ELAPSED}m"
+    notify "📷 PhotosX9 Sync Complete" "$MSG" "default"
 else
     log "ERROR: Export failed with exit code ${EXIT_CODE}"
-    notify "osxphotos Sync Failed" "Export failed (exit code ${EXIT_CODE})"
+    notify "📷 Sync Failed" "Export failed (exit code ${EXIT_CODE}) — check logs" "high"
     exit $EXIT_CODE
 fi
 

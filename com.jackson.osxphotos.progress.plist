@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jackson.osxphotos.progress</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/jacksonharris/repos/ExcireFotoManagement/osxphotos_progress.sh</string>
+    </array>
+
+    <!-- Run every hour -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <!-- Log stdout/stderr -->
+    <key>StandardOutPath</key>
+    <string>/Users/jacksonharris/repos/ExcireFotoManagement/logs/progress_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jacksonharris/repos/ExcireFotoManagement/logs/progress_stderr.log</string>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/jacksonharris/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
