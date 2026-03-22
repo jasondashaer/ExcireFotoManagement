@@ -9,11 +9,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PHOTOS_LIBRARY="/Volumes/PhotosX9/Photos Library.photoslibrary"
+PHOTOS_DB="${PHOTOS_LIBRARY}/database/Photos.sqlite"
 VOLUME_NAME="PhotosX9"
 NTFY_TOPIC="jackson-photosx9-4829"
 STATE_FILE="/tmp/osxphotos_progress_last.txt"
 LOCK_FILE="/tmp/osxphotos_progress.lock"
-QUERY_TIMEOUT=120  # seconds before giving up on a query
+TMP_DB="/tmp/osxphotos_progress_db.sqlite"
 
 ntfy_push() {
     local title="$1"
@@ -27,7 +28,7 @@ ntfy_push() {
 }
 
 cleanup() {
-    rm -f "$LOCK_FILE"
+    rm -f "$LOCK_FILE" "$TMP_DB" "${TMP_DB}-wal" "${TMP_DB}-shm"
 }
 trap cleanup EXIT
 
@@ -48,37 +49,55 @@ if [[ ! -d "/Volumes/${VOLUME_NAME}" ]]; then
     exit 1
 fi
 
-# Run a query with a hard timeout via perl alarm (macOS-native, no extra deps)
-run_query() {
-    perl -e 'alarm(shift); exec @ARGV' -- "$QUERY_TIMEOUT" \
-        osxphotos query \
-        --library "$PHOTOS_LIBRARY" \
-        "$1" --missing --count 2>/dev/null | tail -1 || echo "?"
-}
+# Copy DB to /tmp to bypass lock contention from active iCloud downloads
+cp "$PHOTOS_DB" "$TMP_DB" 2>/dev/null || true
+cp "${PHOTOS_DB}-wal" "${TMP_DB}-wal" 2>/dev/null || true
+cp "${PHOTOS_DB}-shm" "${TMP_DB}-shm" 2>/dev/null || true
 
-MISSING=$(run_query "--only-photos")
-MISSING_VIDEOS=$(run_query "--only-movies")
+# Query the copy directly — fast and lock-free
+# ZASSET: ZTRASHEDSTATE=0 (not trashed), ZKIND=0 (photo) or 1 (video)
+# ZCLOUDLOCALSTATE=0 means not yet downloaded from iCloud
+MISSING=$(sqlite3 "$TMP_DB" \
+    "SELECT COUNT(*) FROM ZASSET WHERE ZTRASHEDSTATE=0 AND ZKIND=0 AND ZCLOUDLOCALSTATE=0;" \
+    2>/dev/null || echo "?")
 
-# Calculate delta since last run
+MISSING_VIDEOS=$(sqlite3 "$TMP_DB" \
+    "SELECT COUNT(*) FROM ZASSET WHERE ZTRASHEDSTATE=0 AND ZKIND=1 AND ZCLOUDLOCALSTATE=0;" \
+    2>/dev/null || echo "?")
+
+# Load previous counts
 LAST_MISSING=""
+LAST_MISSING_VIDEOS=""
 if [[ -f "$STATE_FILE" ]]; then
-    LAST_MISSING=$(cat "$STATE_FILE" 2>/dev/null || echo "")
+    LAST_MISSING=$(awk 'NR==1' "$STATE_FILE" 2>/dev/null || echo "")
+    LAST_MISSING_VIDEOS=$(awk 'NR==2' "$STATE_FILE" 2>/dev/null || echo "")
 fi
 
-if [[ -n "$LAST_MISSING" && "$MISSING" =~ ^[0-9]+$ && "$LAST_MISSING" =~ ^[0-9]+$ ]]; then
-    DELTA=$(( LAST_MISSING - MISSING ))
-    DELTA_STR="↓ ${DELTA} downloaded"
+# Only save state when we have real numbers
+if [[ "$MISSING" =~ ^[0-9]+$ ]]; then
+    printf '%s\n%s\n' "$MISSING" "$MISSING_VIDEOS" > "$STATE_FILE"
+fi
+
+# Calculate deltas
+if [[ "$MISSING" =~ ^[0-9]+$ && "$LAST_MISSING" =~ ^[0-9]+$ ]]; then
+    PHOTO_DELTA=$(( LAST_MISSING - MISSING ))
+    PHOTO_DELTA_STR="↓ ${PHOTO_DELTA} downloaded since last check"
 else
-    DELTA_STR="first check"
+    PHOTO_DELTA_STR="first check"
 fi
 
-# Save current count for next run
-echo "$MISSING" > "$STATE_FILE"
+if [[ "$MISSING_VIDEOS" =~ ^[0-9]+$ && "$LAST_MISSING_VIDEOS" =~ ^[0-9]+$ ]]; then
+    VIDEO_DELTA=$(( LAST_MISSING_VIDEOS - MISSING_VIDEOS ))
+    VIDEO_DELTA_STR="↓ ${VIDEO_DELTA} downloaded since last check"
+else
+    VIDEO_DELTA_STR="first check"
+fi
 
 # Build and send message
-if [[ "$MISSING" == "0" ]]; then
-    ntfy_push "📷 iCloud Download Complete!" "All photos are local — disable the hourly check" "high"
+if [[ "$MISSING" == "0" && "$MISSING_VIDEOS" == "0" ]]; then
+    ntfy_push "📷 iCloud Download Complete!" "All photos and videos are local — disable the progress check" "high"
 else
-    MSG="Still downloading: ${MISSING} photos, ${MISSING_VIDEOS} videos (${DELTA_STR})"
+    MSG="Photos remaining: ${MISSING} (${PHOTO_DELTA_STR})
+Videos remaining: ${MISSING_VIDEOS} (${VIDEO_DELTA_STR})"
     ntfy_push "📷 iCloud Progress" "$MSG" "default"
 fi
