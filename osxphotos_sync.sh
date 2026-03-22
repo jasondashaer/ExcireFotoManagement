@@ -48,7 +48,7 @@ notify() {
     # macOS notification
     osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
     # ntfy push notification to phone
-    curl -s \
+    curl -s --max-time 10 \
         -H "Title: $title" \
         -H "Priority: $priority" \
         -d "$message" \

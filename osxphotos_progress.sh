@@ -17,7 +17,7 @@ ntfy_push() {
     local title="$1"
     local message="$2"
     local priority="${3:-default}"
-    curl -s \
+    curl -s --max-time 10 \
         -H "Title: $title" \
         -H "Priority: $priority" \
         -d "$message" \
