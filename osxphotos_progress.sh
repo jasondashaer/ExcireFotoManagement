@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# osxphotos_progress.sh — Hourly iCloud download progress notifications
+# osxphotos_progress.sh — Periodic iCloud download progress notifications
 #
 # Sends a push notification showing how many photos are still downloading
-# from iCloud. Intended to run hourly during the initial library sync.
+# from iCloud. Intended to run during the initial library sync.
 # Disable this launchd job once iCloud downloads are complete.
 
 set -euo pipefail
@@ -12,6 +12,8 @@ PHOTOS_LIBRARY="/Volumes/PhotosX9/Photos Library.photoslibrary"
 VOLUME_NAME="PhotosX9"
 NTFY_TOPIC="jackson-photosx9-4829"
 STATE_FILE="/tmp/osxphotos_progress_last.txt"
+LOCK_FILE="/tmp/osxphotos_progress.lock"
+QUERY_TIMEOUT=90  # seconds before giving up on a query
 
 ntfy_push() {
     local title="$1"
@@ -24,25 +26,54 @@ ntfy_push() {
         "https://ntfy.sh/${NTFY_TOPIC}" >/dev/null 2>&1 || true
 }
 
+cleanup() {
+    rm -f "$LOCK_FILE"
+}
+trap cleanup EXIT
+
+# Lock file — prevent overlapping runs
+if [[ -f "$LOCK_FILE" ]]; then
+    LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+    if [[ -n "$LOCK_PID" ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
+        exit 0  # already running, skip silently
+    else
+        rm -f "$LOCK_FILE"
+    fi
+fi
+echo $$ > "$LOCK_FILE"
+
 # Check volume is mounted
 if [[ ! -d "/Volumes/${VOLUME_NAME}" ]]; then
     ntfy_push "📷 Progress Check Failed" "PhotosX9 not mounted" "high"
     exit 1
 fi
 
-# Count photos still missing from iCloud
-MISSING=$(osxphotos query \
-    --library "$PHOTOS_LIBRARY" \
-    --only-photos \
-    --missing \
-    --count 2>/dev/null | tail -1 || echo "?")
+# Run osxphotos query with a timeout using background PID monitoring
+run_query() {
+    local filter="$1"
+    local result="?"
+    osxphotos query \
+        --library "$PHOTOS_LIBRARY" \
+        "$filter" \
+        --missing \
+        --ramdb \
+        --count 2>/dev/null | tail -1 &
+    local pid=$!
+    local elapsed=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [[ $elapsed -ge $QUERY_TIMEOUT ]]; then
+            kill "$pid" 2>/dev/null || true
+            echo "?"
+            return
+        fi
+        sleep 2
+        elapsed=$(( elapsed + 2 ))
+    done
+    wait "$pid" 2>/dev/null || true
+}
 
-# Count videos still missing
-MISSING_VIDEOS=$(osxphotos query \
-    --library "$PHOTOS_LIBRARY" \
-    --only-movies \
-    --missing \
-    --count 2>/dev/null | tail -1 || echo "?")
+MISSING=$(run_query "--only-photos")
+MISSING_VIDEOS=$(run_query "--only-movies")
 
 # Calculate delta since last run
 LAST_MISSING=""
@@ -52,7 +83,7 @@ fi
 
 if [[ -n "$LAST_MISSING" && "$MISSING" =~ ^[0-9]+$ && "$LAST_MISSING" =~ ^[0-9]+$ ]]; then
     DELTA=$(( LAST_MISSING - MISSING ))
-    DELTA_STR="↓ ${DELTA} since last hour"
+    DELTA_STR="↓ ${DELTA} downloaded"
 else
     DELTA_STR="first check"
 fi
@@ -62,7 +93,7 @@ echo "$MISSING" > "$STATE_FILE"
 
 # Build and send message
 if [[ "$MISSING" == "0" ]]; then
-    ntfy_push "📷 iCloud Download Complete!" "All photos are local — you can disable the hourly check" "high"
+    ntfy_push "📷 iCloud Download Complete!" "All photos are local — disable the hourly check" "high"
 else
     MSG="Still downloading: ${MISSING} photos, ${MISSING_VIDEOS} videos (${DELTA_STR})"
     ntfy_push "📷 iCloud Progress" "$MSG" "default"
