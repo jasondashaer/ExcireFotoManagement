@@ -13,7 +13,7 @@ VOLUME_NAME="PhotosX9"
 NTFY_TOPIC="jackson-photosx9-4829"
 STATE_FILE="/tmp/osxphotos_progress_last.txt"
 LOCK_FILE="/tmp/osxphotos_progress.lock"
-QUERY_TIMEOUT=90  # seconds before giving up on a query
+QUERY_TIMEOUT=120  # seconds before giving up on a query
 
 ntfy_push() {
     local title="$1"
@@ -48,28 +48,12 @@ if [[ ! -d "/Volumes/${VOLUME_NAME}" ]]; then
     exit 1
 fi
 
-# Run osxphotos query with a timeout using background PID monitoring
+# Run a query with a hard timeout via perl alarm (macOS-native, no extra deps)
 run_query() {
-    local filter="$1"
-    local result="?"
-    osxphotos query \
+    perl -e 'alarm(shift); exec @ARGV' -- "$QUERY_TIMEOUT" \
+        osxphotos query \
         --library "$PHOTOS_LIBRARY" \
-        "$filter" \
-        --missing \
-        --ramdb \
-        --count 2>/dev/null | tail -1 &
-    local pid=$!
-    local elapsed=0
-    while kill -0 "$pid" 2>/dev/null; do
-        if [[ $elapsed -ge $QUERY_TIMEOUT ]]; then
-            kill "$pid" 2>/dev/null || true
-            echo "?"
-            return
-        fi
-        sleep 2
-        elapsed=$(( elapsed + 2 ))
-    done
-    wait "$pid" 2>/dev/null || true
+        "$1" --missing --count 2>/dev/null | tail -1 || echo "?"
 }
 
 MISSING=$(run_query "--only-photos")
