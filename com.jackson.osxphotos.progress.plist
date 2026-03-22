@@ -11,13 +11,13 @@
         <string>/Users/jacksonharris/repos/ExcireFotoManagement/osxphotos_progress.sh</string>
     </array>
 
-    <!-- Run at :30 every hour -->
+    <!-- Run every 15 minutes (:00, :15, :30, :45) -->
     <key>StartCalendarInterval</key>
     <array>
-        <dict>
-            <key>Minute</key>
-            <integer>30</integer>
-        </dict>
+        <dict><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Minute</key><integer>45</integer></dict>
     </array>
 
     <!-- Log stdout/stderr -->
